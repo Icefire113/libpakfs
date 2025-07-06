@@ -33,7 +33,13 @@ impl Default for PakFileHeader {
 #[derive(Debug)]
 pub struct PakFileData {
     /// The files in the pak file, stored as a b-tree
-    data: [u8],
+    data: Vec<u8>,
+}
+
+impl Default for PakFileData {
+    fn default() -> Self {
+        PakFileData { data: vec![] }
+    }
 }
 
 /// This represents the format for a manifest entry
@@ -49,7 +55,7 @@ pub struct ManifestEntry {
 }
 
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct PakFile {
     header: PakFileHeader,
     data: PakFileData,

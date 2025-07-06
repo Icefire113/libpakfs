@@ -2,7 +2,7 @@
 
 ## File Structure
 
-The structure of a pak file is defined in [`pakfile.rs`](../src/pakfile/pakfile.rs)
+The structure of a pak file is defined in [`pakfile.rs`](../src/pakfile/pakfile.rs).
 
 ## Overview
 

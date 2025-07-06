@@ -8,11 +8,15 @@ use crate::pakfile::pakfile::PAKFILE_MAGIC;
 #[derive(Debug)]
 pub struct PakFS {
     file: Option<File>,
+    is_finalized: bool,
 }
 
 impl PakFS {
     pub fn new() -> Self {
-        PakFS { file: None }
+        PakFS {
+            file: None,
+            is_finalized: false,
+        }
     }
 
     // TODO: Stop using Strings for errors
@@ -35,7 +39,10 @@ impl PakFS {
         let mut reader = BufReader::new(self.file.as_mut().unwrap());
         match reader.read_exact(x.as_mut()) {
             Ok(_) => {
-                dbg!("[{}, {}, {}, {}]", x[0], x[1], x[2], x[3]);
+                dbg!(format!(
+                    "File Magic: [{}, {}, {}, {}]",
+                    x[0] as char, x[1] as char, x[2] as char, x[3] as char
+                ));
                 if PAKFILE_MAGIC == x {
                     return Ok(true);
                 } else {
