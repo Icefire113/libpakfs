@@ -1,6 +1,9 @@
 use std::{fs::File, io::Read};
 
-use crate::pakfile::pakfile::{PAKFILE_MAGIC, PakFile};
+use crate::{
+    pakfile::pakfile::{PAKFILE_MAGIC, PAKFILE_VERSION, PakFile},
+    util::{read_u32, read_u64},
+};
 
 #[derive(Debug)]
 pub struct PakFileDeSerializer {
@@ -37,28 +40,23 @@ impl PakFileDeSerializer {
         let ver: u32 = read_u32(&mut reader)?;
         println!("read version: {}", ver);
 
+        if ver != PAKFILE_VERSION {
+            return Err(format!(
+                "This pak file cannot be read with this version of libpakfs, pak file version: {}, libpakfs version: {}",
+                ver, PAKFILE_VERSION
+            ));
+        }
+
         // skip the ID portion
-        reader
-            .seek_relative(size_of::<u64>() as i64)
-            .map_err(|e| e.to_string())?;
+        // reader
+        //     .seek_relative(size_of::<u64>() as i64)
+        //     .map_err(|e| e.to_string())?;
+        let id: u64 = read_u64(&mut reader)?;
+        println!("read file ID: {}", id);
 
         let entry_count = read_u64(&mut reader)?;
         println!("read entry count: {}", entry_count);
 
         Ok(PakFile::default())
     }
-}
-
-/// Reads a u32 from the reader
-fn read_u32(reader: &mut std::io::BufReader<&File>) -> Result<u32, String> {
-    let mut buff = [0u8; size_of::<u32>()];
-    reader.read_exact(&mut buff).map_err(|e| e.to_string())?;
-    Ok(u32::from_le_bytes(buff))
-}
-
-/// Reads a u64 from the reader
-fn read_u64(reader: &mut std::io::BufReader<&File>) -> Result<u64, String> {
-    let mut buff = [0u8; size_of::<u64>()];
-    reader.read_exact(&mut buff).map_err(|e| e.to_string())?;
-    Ok(u64::from_le_bytes(buff))
 }

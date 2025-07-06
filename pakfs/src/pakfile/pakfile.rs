@@ -1,6 +1,9 @@
 /// The magic for a pak file, this is used to validate the header and should be the first 4 bytes of a pak file
 pub const PAKFILE_MAGIC: [u8; 4] = ['p' as u8, 'k' as u8, 'f' as u8, 's' as u8];
 
+/// The current version of the pak file
+pub const PAKFILE_VERSION: u32 = 1;
+
 #[allow(dead_code)]
 /// This is the format for a pak file header
 #[derive(Debug)]
@@ -18,14 +21,34 @@ pub struct PakFileHeader {
 }
 
 impl Default for PakFileHeader {
+    /// Create a new pak file header, with all empty (0d out) data
     fn default() -> Self {
         PakFileHeader {
-            magic: PAKFILE_MAGIC,
-            version: 1,
+            magic: [0_u8; 4],
+            version: 0,
             id: 0,
             entry_count: 0,
             manifest: vec![],
         }
+    }
+}
+
+impl PakFileHeader {
+    /// Creates a new pak file header with expected file magic, current libpakfs
+    /// version and a random ID
+    pub fn new() -> Self {
+        PakFileHeader {
+            magic: PAKFILE_MAGIC,
+            version: PAKFILE_VERSION,
+            id: rand::random(),
+            entry_count: 0,
+            manifest: vec![],
+        }
+    }
+
+    /// Sets the pak file's ID
+    pub fn set_id(&mut self, id: u64) {
+        self.id = id;
     }
 }
 
