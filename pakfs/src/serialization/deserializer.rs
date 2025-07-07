@@ -2,49 +2,50 @@ use std::{fs::File, io::Read};
 
 use crate::{
     pakfile::pakfile::{PAKFILE_MAGIC, PAKFILE_VERSION, PakFile},
+    serialization::errors::{self, DeSerError},
     util::{read_u32, read_u64},
 };
 
 #[derive(Debug)]
-pub struct PakFileDeSerializer {
+pub struct PakFileDeserializer {
     pak_file: File,
 }
 
-impl PakFileDeSerializer {
+impl PakFileDeserializer {
     pub fn new(pak_file: File) -> Self {
-        PakFileDeSerializer { pak_file: pak_file }
+        PakFileDeserializer { pak_file: pak_file }
     }
 }
 
-impl PakFileDeSerializer {
-    pub fn deserialize(&mut self) -> Result<PakFile, String> {
+impl PakFileDeserializer {
+    pub fn deserialize(&mut self) -> Result<PakFile, DeSerError> {
         let mut reader = std::io::BufReader::new(&self.pak_file);
         let mut header_bytes = [0u8; 4];
 
-        reader
-            .read_exact(header_bytes.as_mut())
-            .map_err(|e| e.to_string())?;
+        reader.read_exact(header_bytes.as_mut())?;
 
         println!(
-            "read magic: [{}, {}, {}, {}]",
+            "read magic: [{}, {}, {}, {}]\
+           \n       aka: [{}, {}, {}, {}]",
             header_bytes[0] as char,
             header_bytes[1] as char,
             header_bytes[2] as char,
-            header_bytes[3] as char
+            header_bytes[3] as char,
+            header_bytes[0],
+            header_bytes[1],
+            header_bytes[2],
+            header_bytes[3]
         );
 
         if header_bytes != PAKFILE_MAGIC {
-            return Err("invalid magic".to_string());
+            return Err(errors::DeSerError::InvalidFileMagic);
         }
 
         let ver: u32 = read_u32(&mut reader)?;
         println!("read version: {}", ver);
 
         if ver != PAKFILE_VERSION {
-            return Err(format!(
-                "This pak file cannot be read with this version of libpakfs, pak file version: {}, libpakfs version: {}",
-                ver, PAKFILE_VERSION
-            ));
+            return Err(errors::DeSerError::InvalidFileVersion { actual: ver });
         }
 
         // skip the ID portion

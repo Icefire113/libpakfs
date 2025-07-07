@@ -2,7 +2,11 @@
 
 ## File Structure
 
-The structure of a pak file is defined in [`pakfile.rs`](../src/pakfile/pakfile.rs).
+The structure of a pak file is defined in [`pakfile.rs`](../pakfs/src/pakfile/pakfile.rs).
+
+### Remarks
+
+All strings in the file, particularly the file paths in the manifest, must be UTF-8 encoded
 
 ## Overview
 

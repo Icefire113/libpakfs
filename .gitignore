@@ -1,3 +1,8 @@
 /target
+
+# any pak files or backups from editing them in HxD
 *.pak
 *.pak.bak
+
+# any ImHex projects
+*.hexproj

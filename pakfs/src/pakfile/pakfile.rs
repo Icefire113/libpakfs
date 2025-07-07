@@ -5,16 +5,16 @@ pub const PAKFILE_MAGIC: [u8; 4] = ['p' as u8, 'k' as u8, 'f' as u8, 's' as u8];
 pub const PAKFILE_VERSION: u32 = 1;
 
 #[allow(dead_code)]
-/// This is the format for a pak file header
 #[derive(Debug)]
+/// This is the format for a pak file header
 pub struct PakFileHeader {
-    /// This should always be "pkfs" (not-null-terminated)
+    /// This should always be "pkfs" (not null-terminated)
     magic: [u8; 4],
     /// Version of the pak file
     version: u32,
-    /// The ID for the pak file, these should be unique for each pak file that you intend on loading
+    /// The ID for the pak file
     id: u64,
-    /// The number of files in the pak file
+    /// The number of files in the pak file (also the number of manifest entries)
     entry_count: u64,
     /// List of all files in the pak file
     manifest: Vec<ManifestEntry>,
