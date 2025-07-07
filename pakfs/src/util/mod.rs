@@ -8,6 +8,17 @@ use std::{
 use crate::util::{self, errors::UtilReadError};
 
 #[allow(dead_code)]
+/// Reads `n` bytes from the reader
+pub(crate) fn read_n_bytes(
+    reader: &mut std::io::BufReader<&File>,
+    n: usize,
+) -> Result<Vec<u8>, UtilReadError> {
+    let mut buff = vec![0u8; n];
+    reader.read_exact(&mut buff)?;
+    Ok(buff)
+}
+
+#[allow(dead_code)]
 /// Reads a u8 from the reader
 pub(crate) fn read_u8(reader: &mut std::io::BufReader<&File>) -> Result<u8, UtilReadError> {
     let mut buff = [0u8; size_of::<u8>()];

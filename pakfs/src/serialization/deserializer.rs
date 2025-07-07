@@ -1,9 +1,9 @@
-use std::{fs::File, io::Read};
+use std::{fs::File, io::BufReader};
 
 use crate::{
     pakfile::pakfile::{PAKFILE_MAGIC, PAKFILE_VERSION, PakFile},
     serialization::errors::{self, DeSerError},
-    util::{read_u32, read_u64},
+    util::{read_n_bytes, read_u32, read_u64},
 };
 
 #[derive(Debug)]
@@ -19,40 +19,34 @@ impl PakFileDeserializer {
 
 impl PakFileDeserializer {
     pub fn deserialize(&mut self) -> Result<PakFile, DeSerError> {
-        let mut reader = std::io::BufReader::new(&self.pak_file);
-        let mut header_bytes = [0u8; 4];
-
-        reader.read_exact(header_bytes.as_mut())?;
+        let mut reader = BufReader::new(&self.pak_file);
+        let magic_bytes = read_n_bytes(&mut reader, 4)?;
 
         println!(
             "read magic: [{}, {}, {}, {}]\
            \n       aka: [{}, {}, {}, {}]",
-            header_bytes[0] as char,
-            header_bytes[1] as char,
-            header_bytes[2] as char,
-            header_bytes[3] as char,
-            header_bytes[0],
-            header_bytes[1],
-            header_bytes[2],
-            header_bytes[3]
+            magic_bytes[0] as char,
+            magic_bytes[1] as char,
+            magic_bytes[2] as char,
+            magic_bytes[3] as char,
+            magic_bytes[0],
+            magic_bytes[1],
+            magic_bytes[2],
+            magic_bytes[3]
         );
 
-        if header_bytes != PAKFILE_MAGIC {
+        if magic_bytes != PAKFILE_MAGIC {
             return Err(errors::DeSerError::InvalidFileMagic);
         }
 
-        let ver: u32 = read_u32(&mut reader)?;
+        let ver = read_u32(&mut reader)?;
         println!("read version: {}", ver);
 
         if ver != PAKFILE_VERSION {
             return Err(errors::DeSerError::InvalidFileVersion { actual: ver });
         }
 
-        // skip the ID portion
-        // reader
-        //     .seek_relative(size_of::<u64>() as i64)
-        //     .map_err(|e| e.to_string())?;
-        let id: u64 = read_u64(&mut reader)?;
+        let id = read_u64(&mut reader)?;
         println!("read file ID: {}", id);
 
         let entry_count = read_u64(&mut reader)?;
