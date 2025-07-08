@@ -65,6 +65,8 @@ impl PakFileDeserializer {
         ]);
         header.set_version(ver);
 
+        let mut data_size = 0;
+
         for i in 0..entry_count {
             let file_offset = read_u64(&mut reader)?;
             let file_size = read_u64(&mut reader)?;
@@ -73,10 +75,19 @@ impl PakFileDeserializer {
             let entry = ManifestEntry::new(file_path, file_offset, file_size);
             println!("read entry {}: {:#?}", i, entry);
             header.manifest_mut().push(entry);
+            data_size += file_size;
         }
 
-        println!("\n\nread header: {:#?}\n\n", header);
+        println!("\nread header: {:#?}", header);
 
-        Ok(PakFile::default())
+        let mut pak_file = PakFile::default();
+        pak_file.set_header(header);
+
+        let file_data = read_n_bytes(&mut reader, data_size as usize)?;
+        pak_file.set_data(file_data);
+        
+        println!("\nread pak file: {:#?}", pak_file);
+
+        Ok(pak_file)
     }
 }

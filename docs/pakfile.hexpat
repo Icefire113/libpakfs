@@ -4,6 +4,7 @@ struct ManifestEntry {
     char file_path[];
 };
 
+
 struct HEADER {
     char magic[4];
     u32 version;
@@ -12,8 +13,12 @@ struct HEADER {
     ManifestEntry manifest[entry_count];
 };
 
-struct data {
-    u8 data[];
-};
 
 HEADER header @ 0x00;
+
+u64 total_file_data_size = 0;
+for (u64 i = 0, i<header.entry_count, i = i + 1) {
+    total_file_data_size += header.manifest[i].file_size;
+}
+
+u8 data[total_file_data_size] @ $;

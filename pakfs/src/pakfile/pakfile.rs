@@ -24,7 +24,7 @@ impl Default for PakFileHeader {
     /// Create a new pak file header, with all empty (0d out) data
     fn default() -> Self {
         PakFileHeader {
-            magic: [0_u8; 4],
+            magic: [0u8; 4],
             version: 0,
             id: 0,
             entry_count: 0,
@@ -66,6 +66,10 @@ impl PakFileHeader {
         &mut self.manifest
     }
 
+    pub fn manifest(&self) -> &Vec<ManifestEntry> {
+        &self.manifest
+    }
+
     pub fn magic(&self) -> [u8; 4] {
         self.magic
     }
@@ -80,25 +84,6 @@ impl PakFileHeader {
 
     pub fn entry_count(&self) -> u64 {
         self.entry_count
-    }
-}
-
-#[allow(dead_code)]
-#[derive(Debug)]
-pub struct PakFileData {
-    /// The files in the pak file, stored as a b-tree
-    data: Vec<u8>,
-}
-
-impl PakFileData {
-    pub fn data_mut(&mut self) -> &mut Vec<u8> {
-        &mut self.data
-    }
-}
-
-impl Default for PakFileData {
-    fn default() -> Self {
-        PakFileData { data: vec![] }
     }
 }
 
@@ -126,8 +111,58 @@ impl ManifestEntry {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct PakFile {
     header: PakFileHeader,
-    data: PakFileData,
+    data: Vec<u8>,
+}
+
+impl Default for PakFile {
+    /// Creates a new pak file with 0d out header and an empty data portion.
+    fn default() -> Self {
+        PakFile {
+            header: PakFileHeader::default(),
+            data: vec![],
+        }
+    }
+}
+
+impl PakFile {
+    /// Creates a new pak file, with a correctly formatted header and an empty data portion
+    pub fn new() -> Self {
+        PakFile {
+            header: PakFileHeader::new(),
+            data: vec![],
+        }
+    }
+
+    /// Returns a mutable reference to the header of the pak file
+    pub fn header_mut(&mut self) -> &mut PakFileHeader {
+        &mut self.header
+    }
+
+    /// Returns a reference to the header of the pak file
+    pub fn header(&self) -> &PakFileHeader {
+        &self.header
+    }
+
+    /// Returns a mutable reference to the data portion of the pak file
+    pub fn data_mut(&mut self) -> &mut Vec<u8> {
+        &mut self.data
+    }
+
+    /// Returns a reference to the data portion of the pak file
+    pub fn data(&self) -> &Vec<u8> {
+        &self.data
+    }
+
+    /// Sets the header of the pak file
+    pub fn set_header(&mut self, header: PakFileHeader) {
+        self.header = header;
+    }
+
+    /// Sets the data of the pak file
+    pub fn set_data(&mut self, data: Vec<u8>) {
+        self.data = data;
+    }
 }
