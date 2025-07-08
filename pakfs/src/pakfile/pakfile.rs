@@ -46,9 +46,40 @@ impl PakFileHeader {
         }
     }
 
-    /// Sets the pak file's ID
     pub fn set_id(&mut self, id: u64) {
         self.id = id;
+    }
+
+    pub fn set_magic(&mut self, magic: [u8; 4]) {
+        self.magic = magic;
+    }
+
+    pub fn set_entry_count(&mut self, entry_count: u64) {
+        self.entry_count = entry_count;
+    }
+
+    pub fn set_version(&mut self, version: u32) {
+        self.version = version;
+    }
+
+    pub fn manifest_mut(&mut self) -> &mut Vec<ManifestEntry> {
+        &mut self.manifest
+    }
+
+    pub fn magic(&self) -> [u8; 4] {
+        self.magic
+    }
+
+    pub fn version(&self) -> u32 {
+        self.version
+    }
+
+    pub fn id(&self) -> u64 {
+        self.id
+    }
+
+    pub fn entry_count(&self) -> u64 {
+        self.entry_count
     }
 }
 
@@ -57,6 +88,12 @@ impl PakFileHeader {
 pub struct PakFileData {
     /// The files in the pak file, stored as a b-tree
     data: Vec<u8>,
+}
+
+impl PakFileData {
+    pub fn data_mut(&mut self) -> &mut Vec<u8> {
+        &mut self.data
+    }
 }
 
 impl Default for PakFileData {
@@ -69,12 +106,23 @@ impl Default for PakFileData {
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct ManifestEntry {
-    /// The path to the file localized to the pak file
-    file_path: String,
     /// The offset of the file stored in the pak file indexed from the start of the data portion
     file_offset: u64,
     /// The size of the file in bytes
     file_size: u64,
+    /// The path to the file localized to the pak file
+    file_path: String,
+}
+
+impl ManifestEntry {
+    /// Creates a new manifest entry with the given file path, offset and size
+    pub fn new(file_path: String, file_offset: u64, file_size: u64) -> Self {
+        ManifestEntry {
+            file_path,
+            file_offset,
+            file_size,
+        }
+    }
 }
 
 #[allow(dead_code)]

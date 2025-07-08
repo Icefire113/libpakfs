@@ -12,4 +12,8 @@ struct HEADER {
     ManifestEntry manifest[entry_count];
 };
 
+struct data {
+    u8 data[];
+};
+
 HEADER header @ 0x00;

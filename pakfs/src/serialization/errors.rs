@@ -4,6 +4,7 @@ use crate::util;
 use std::io;
 use thiserror::Error;
 
+/// This represents an error that occured when deserializing a pak file
 #[derive(Debug, Error)]
 pub enum DeSerError {
     #[error("IO Error: {0}")]

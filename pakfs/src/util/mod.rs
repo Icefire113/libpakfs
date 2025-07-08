@@ -5,7 +5,7 @@ use std::{
     io::{self, BufRead, Read, Seek},
 };
 
-use crate::util::{self, errors::UtilReadError};
+use crate::util::errors::UtilReadError;
 
 #[allow(dead_code)]
 /// Reads `n` bytes from the reader
@@ -55,6 +55,8 @@ pub(crate) fn read_u64(reader: &mut std::io::BufReader<&File>) -> Result<u64, Ut
 pub(crate) fn read_string(reader: &mut std::io::BufReader<&File>) -> Result<String, UtilReadError> {
     let mut buff = vec![];
     reader.read_until('\0' as u8, &mut buff)?;
+    // dont put the null terminal in the string
+    buff.pop();
     Ok(String::from_utf8(buff)?)
 }
 
@@ -77,7 +79,7 @@ pub(crate) fn read_until_bytes<R: Read>(
                 buff.push(byte[0]);
             }
             Err(e) => {
-                return Err(util::errors::UtilReadError::IoError(e));
+                return Err(UtilReadError::IoError(e));
             }
         }
     }

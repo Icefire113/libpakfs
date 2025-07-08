@@ -1,9 +1,9 @@
 use std::{fs::File, io::BufReader};
 
 use crate::{
-    pakfile::pakfile::{PAKFILE_MAGIC, PAKFILE_VERSION, PakFile},
-    serialization::errors::{self, DeSerError},
-    util::{read_n_bytes, read_u32, read_u64},
+    pakfile::pakfile::{ManifestEntry, PAKFILE_MAGIC, PAKFILE_VERSION, PakFile, PakFileHeader},
+    serialization::errors::DeSerError,
+    util::{read_n_bytes, read_string, read_u32, read_u64},
 };
 
 #[derive(Debug)]
@@ -36,14 +36,14 @@ impl PakFileDeserializer {
         );
 
         if magic_bytes != PAKFILE_MAGIC {
-            return Err(errors::DeSerError::InvalidFileMagic);
+            return Err(DeSerError::InvalidFileMagic);
         }
 
         let ver = read_u32(&mut reader)?;
         println!("read version: {}", ver);
 
         if ver != PAKFILE_VERSION {
-            return Err(errors::DeSerError::InvalidFileVersion { actual: ver });
+            return Err(DeSerError::InvalidFileVersion { actual: ver });
         }
 
         let id = read_u64(&mut reader)?;
@@ -51,6 +51,31 @@ impl PakFileDeserializer {
 
         let entry_count = read_u64(&mut reader)?;
         println!("read entry count: {}", entry_count);
+
+        // At this point, we have read most of the header with the exception of the
+        // manifest and file data.
+        let mut header = PakFileHeader::default();
+        header.set_id(id);
+        header.set_entry_count(entry_count);
+        header.set_magic([
+            magic_bytes[0],
+            magic_bytes[1],
+            magic_bytes[2],
+            magic_bytes[3],
+        ]);
+        header.set_version(ver);
+
+        for i in 0..entry_count {
+            let file_offset = read_u64(&mut reader)?;
+            let file_size = read_u64(&mut reader)?;
+            let file_path = read_string(&mut reader)?;
+
+            let entry = ManifestEntry::new(file_path, file_offset, file_size);
+            println!("read entry {}: {:#?}", i, entry);
+            header.manifest_mut().push(entry);
+        }
+
+        println!("\n\nread header: {:#?}\n\n", header);
 
         Ok(PakFile::default())
     }
