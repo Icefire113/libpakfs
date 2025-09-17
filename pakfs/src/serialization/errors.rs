@@ -22,3 +22,15 @@ pub enum DeSerError {
     )]
     InvalidFileVersion { actual: u32 },
 }
+
+#[derive(Debug, Error)]
+pub enum SerializerError {
+    #[error("IO Error: {0}")]
+    IoError(#[from] io::Error),
+
+    #[error("Unable to write to file")]
+    UnwritableError,
+
+    #[error("Is not a file")]
+    NotAFileError,
+}

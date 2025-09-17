@@ -1,3 +1,5 @@
+use std::fs::File;
+
 /// The magic for a pak file, this is used to validate the header and should be the first 4 bytes of a pak file
 pub const PAKFILE_MAGIC: [u8; 4] = ['p' as u8, 'k' as u8, 'f' as u8, 's' as u8];
 
@@ -9,13 +11,13 @@ pub const PAKFILE_VERSION: u32 = 1;
 /// This is the format for a pak file header
 pub struct PakFileHeader {
     /// This should always be "pkfs" (not null-terminated)
-    magic: [u8; 4],
+    pub magic: [u8; 4],
     /// Version of the pak file
-    version: u32,
+    pub version: u32,
     /// The ID for the pak file
-    id: u64,
+    pub id: u64,
     /// The number of files in the pak file (also the number of manifest entries)
-    entry_count: u64,
+    pub entry_count: u64,
     /// List of all files in the pak file
     manifest: Vec<ManifestEntry>,
 }
@@ -46,20 +48,22 @@ impl PakFileHeader {
         }
     }
 
-    pub fn set_id(&mut self, id: u64) {
-        self.id = id;
-    }
+    /// Creates and returns a vector of bytes representing the header
+    pub fn as_bytes(&self) -> Vec<u8> {
+        let mut v: Vec<u8> = Vec::new();
+        v.extend_from_slice(&self.magic);
+        v.extend_from_slice(&self.version.to_le_bytes());
+        v.extend_from_slice(&self.id.to_le_bytes());
+        v.extend_from_slice(&self.entry_count.to_le_bytes());
 
-    pub fn set_magic(&mut self, magic: [u8; 4]) {
-        self.magic = magic;
-    }
+        // deep copy the manifest
+        self.manifest.iter().enumerate().for_each(|(_, item)| {
+            v.extend_from_slice(&item.file_offset.to_le_bytes());
+            v.extend_from_slice(&item.file_size.to_le_bytes());
+            v.extend_from_slice(&item.file_path.as_bytes());
+        });
 
-    pub fn set_entry_count(&mut self, entry_count: u64) {
-        self.entry_count = entry_count;
-    }
-
-    pub fn set_version(&mut self, version: u32) {
-        self.version = version;
+        v
     }
 
     pub fn manifest_mut(&mut self) -> &mut Vec<ManifestEntry> {
@@ -68,22 +72,6 @@ impl PakFileHeader {
 
     pub fn manifest(&self) -> &Vec<ManifestEntry> {
         &self.manifest
-    }
-
-    pub fn magic(&self) -> [u8; 4] {
-        self.magic
-    }
-
-    pub fn version(&self) -> u32 {
-        self.version
-    }
-
-    pub fn id(&self) -> u64 {
-        self.id
-    }
-
-    pub fn entry_count(&self) -> u64 {
-        self.entry_count
     }
 }
 
@@ -113,8 +101,8 @@ impl ManifestEntry {
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct PakFile {
-    header: PakFileHeader,
-    data: Vec<u8>,
+    pub header: PakFileHeader,
+    pub data: Vec<u8>,
 }
 
 impl Default for PakFile {
@@ -136,33 +124,4 @@ impl PakFile {
         }
     }
 
-    /// Returns a mutable reference to the header of the pak file
-    pub fn header_mut(&mut self) -> &mut PakFileHeader {
-        &mut self.header
-    }
-
-    /// Returns a reference to the header of the pak file
-    pub fn header(&self) -> &PakFileHeader {
-        &self.header
-    }
-
-    /// Returns a mutable reference to the data portion of the pak file
-    pub fn data_mut(&mut self) -> &mut Vec<u8> {
-        &mut self.data
-    }
-
-    /// Returns a reference to the data portion of the pak file
-    pub fn data(&self) -> &Vec<u8> {
-        &self.data
-    }
-
-    /// Sets the header of the pak file
-    pub fn set_header(&mut self, header: PakFileHeader) {
-        self.header = header;
-    }
-
-    /// Sets the data of the pak file
-    pub fn set_data(&mut self, data: Vec<u8>) {
-        self.data = data;
-    }
 }

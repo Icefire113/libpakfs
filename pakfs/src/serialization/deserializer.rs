@@ -55,15 +55,15 @@ impl PakFileDeserializer {
         // At this point, we have read most of the header with the exception of the
         // manifest and file data.
         let mut header = PakFileHeader::default();
-        header.set_id(id);
-        header.set_entry_count(entry_count);
-        header.set_magic([
+        header.id = id;
+        header.entry_count = entry_count;
+        header.magic = [
             magic_bytes[0],
             magic_bytes[1],
             magic_bytes[2],
             magic_bytes[3],
-        ]);
-        header.set_version(ver);
+        ];
+        header.version = ver;
 
         let mut data_size = 0;
 
@@ -81,11 +81,9 @@ impl PakFileDeserializer {
         println!("\nread header: {:#?}", header);
 
         let mut pak_file = PakFile::default();
-        pak_file.set_header(header);
+        pak_file.header = header;
+        pak_file.data = read_n_bytes(&mut reader, data_size as usize)?;
 
-        let file_data = read_n_bytes(&mut reader, data_size as usize)?;
-        pak_file.set_data(file_data);
-        
         println!("\nread pak file: {:#?}", pak_file);
 
         Ok(pak_file)

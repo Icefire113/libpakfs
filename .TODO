@@ -1,0 +1,3 @@
+☐ Inside `pakfile.rs`, move from storing the data as a `Vec<u8>` to a `Vec<InternalFile>`
+☐ Most of `pakfile` should be moved to `fs`
+☐ Add errors to more sub modeules

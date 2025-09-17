@@ -1,18 +1,12 @@
 pub(crate) mod errors;
 
-use std::{
-    fs::File,
-    io::{self, BufRead, Read, Seek},
-};
+use std::io::{self, BufRead, Seek};
 
 use crate::util::errors::UtilReadError;
 
 #[allow(dead_code)]
 /// Reads `n` bytes from the reader
-pub(crate) fn read_n_bytes(
-    reader: &mut std::io::BufReader<&File>,
-    n: usize,
-) -> Result<Vec<u8>, UtilReadError> {
+pub(crate) fn read_n_bytes<R: BufRead>(reader: &mut R, n: usize) -> Result<Vec<u8>, UtilReadError> {
     let mut buff = vec![0u8; n];
     reader.read_exact(&mut buff)?;
     Ok(buff)
@@ -20,7 +14,7 @@ pub(crate) fn read_n_bytes(
 
 #[allow(dead_code)]
 /// Reads a u8 from the reader
-pub(crate) fn read_u8(reader: &mut std::io::BufReader<&File>) -> Result<u8, UtilReadError> {
+pub(crate) fn read_u8<R: BufRead>(reader: &mut R) -> Result<u8, UtilReadError> {
     let mut buff = [0u8; size_of::<u8>()];
     reader.read_exact(&mut buff)?;
     Ok(u8::from_le_bytes(buff))
@@ -28,7 +22,7 @@ pub(crate) fn read_u8(reader: &mut std::io::BufReader<&File>) -> Result<u8, Util
 
 #[allow(dead_code)]
 /// Reads a u16 from the reader
-pub(crate) fn read_u16(reader: &mut std::io::BufReader<&File>) -> Result<u16, UtilReadError> {
+pub(crate) fn read_u16<R: BufRead>(reader: &mut R) -> Result<u16, UtilReadError> {
     let mut buff = [0u8; size_of::<u16>()];
     reader.read_exact(&mut buff)?;
     Ok(u16::from_le_bytes(buff))
@@ -36,7 +30,7 @@ pub(crate) fn read_u16(reader: &mut std::io::BufReader<&File>) -> Result<u16, Ut
 
 #[allow(dead_code)]
 /// Reads a u32 from the reader
-pub(crate) fn read_u32(reader: &mut std::io::BufReader<&File>) -> Result<u32, UtilReadError> {
+pub(crate) fn read_u32<R: BufRead>(reader: &mut R) -> Result<u32, UtilReadError> {
     let mut buff = [0u8; size_of::<u32>()];
     reader.read_exact(&mut buff)?;
     Ok(u32::from_le_bytes(buff))
@@ -44,7 +38,7 @@ pub(crate) fn read_u32(reader: &mut std::io::BufReader<&File>) -> Result<u32, Ut
 
 #[allow(dead_code)]
 /// Reads a u64 from the reader
-pub(crate) fn read_u64(reader: &mut std::io::BufReader<&File>) -> Result<u64, UtilReadError> {
+pub(crate) fn read_u64<R: BufRead>(reader: &mut R) -> Result<u64, UtilReadError> {
     let mut buff = [0u8; size_of::<u64>()];
     reader.read_exact(&mut buff)?;
     Ok(u64::from_le_bytes(buff))
@@ -52,17 +46,17 @@ pub(crate) fn read_u64(reader: &mut std::io::BufReader<&File>) -> Result<u64, Ut
 
 #[allow(dead_code)]
 /// Reads a C style string from the reader
-pub(crate) fn read_string(reader: &mut std::io::BufReader<&File>) -> Result<String, UtilReadError> {
+pub(crate) fn read_string<R: BufRead>(reader: &mut R) -> Result<String, UtilReadError> {
     let mut buff = vec![];
     reader.read_until('\0' as u8, &mut buff)?;
-    // dont put the null terminal in the string
+    // dont put the null terminator in the string
     buff.pop();
     Ok(String::from_utf8(buff)?)
 }
 
 #[allow(dead_code)]
 /// Reads until a 2 byte pattern is read, returning the bytes read including the pattern
-pub(crate) fn read_until_bytes<R: Read>(
+pub(crate) fn read_until_bytes<R: BufRead + Seek>(
     reader: &mut R,
     pattern: [u8; 2],
 ) -> Result<Vec<u8>, UtilReadError> {
@@ -105,7 +99,7 @@ pub(crate) fn read_until_bytes<R: Read>(
 
 #[allow(dead_code)]
 /// Skips `n` bytes in the reader
-pub(crate) fn skip<R: Read + Seek>(reader: &mut R, n: u64) -> io::Result<()> {
+pub(crate) fn skip<R: BufRead + Seek>(reader: &mut R, n: u64) -> io::Result<()> {
     reader.seek_relative(n as i64)?;
     Ok(())
 }
