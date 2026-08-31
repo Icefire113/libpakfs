@@ -181,12 +181,12 @@ fn parse_metadata(bytes: &[u8], meta_count: u64) -> Result<Vec<MetaEntry>, PakEr
 mod tests {
     use super::*;
     use crate::serialization::pakfile::{Codec, MetaKey};
-    use crate::serialization::serializer::PakWriter;
+    use crate::serialization::builder::PakBuilder;
     use std::io::Write;
 
     /// Writes a small pak to a temp file and returns (path, bytes).
     fn make_test_pak() -> (std::path::PathBuf, Vec<u8>) {
-        let mut w = PakWriter::new();
+        let mut w = PakBuilder::new();
         w.add_bytes("b.txt", b"hello", Codec::None).unwrap();
         w.add_bytes("a.txt", b"world", Codec::Lz4(0)).unwrap();
         w.set_metadata(MetaKey::ModifiedAt, 1234);
@@ -263,7 +263,7 @@ mod tests {
     #[test]
     fn rejects_truncated_manifest() {
         let mut bytes = Vec::new();
-        let mut w = PakWriter::new();
+        let mut w = PakBuilder::new();
         w.add_bytes("some/path.bin", &[0u8; 32], Codec::None)
             .unwrap();
         bytes.extend_from_slice(&w.into_bytes().unwrap());
@@ -277,7 +277,7 @@ mod tests {
     #[test]
     fn rejects_unknown_codec() {
         let mut bytes = Vec::new();
-        let mut w = PakWriter::new();
+        let mut w = PakBuilder::new();
         w.add_bytes("x", b"y", Codec::None).unwrap();
         bytes.extend_from_slice(&w.into_bytes().unwrap());
         bytes[HEADER_SIZE as usize + 24] = 99;

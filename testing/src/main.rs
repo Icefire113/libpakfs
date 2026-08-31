@@ -1,11 +1,11 @@
-use libpakfs::{
+use pakfs::{
     PakFile,
-    serialization::{pakfile::Codec, serializer::PakWriter},
+    serialization::{builder::PakBuilder, pakfile::Codec},
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // build a small pak
-    let mut w = PakWriter::new();
+    let mut w = PakBuilder::new();
     w.add_bytes("hello.txt", b"Hello from inside the pak!", Codec::Zstd(3))?;
     w.add_bytes(
         "data.bin",

@@ -54,15 +54,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
 
 [[package]]
-name = "libpakfs"
-version = "0.1.0"
-dependencies = [
- "lz4",
- "thiserror",
- "zstd",
-]
-
-[[package]]
 name = "lz4"
 version = "1.28.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -79,6 +70,15 @@ checksum = "6bd8c0d6c6ed0cd30b3652886bb8711dc4bb01d637a68105a3d5158039b418e6"
 dependencies = [
  "cc",
  "libc",
+]
+
+[[package]]
+name = "pakfs"
+version = "0.1.0"
+dependencies = [
+ "lz4",
+ "thiserror",
+ "zstd",
 ]
 
 [[package]]
@@ -132,7 +132,7 @@ dependencies = [
 name = "testing"
 version = "0.1.0"
 dependencies = [
- "libpakfs",
+ "pakfs",
 ]
 
 [[package]]

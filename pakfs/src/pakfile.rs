@@ -132,7 +132,7 @@ impl PakFile {
 mod tests {
     use super::*;
     use crate::serialization::pakfile::Codec;
-    use crate::serialization::serializer::PakWriter;
+    use crate::serialization::builder::PakBuilder;
 
     /// Writes a small pak to a unique temp file.
     fn write_test_pak(
@@ -140,7 +140,7 @@ mod tests {
         meta: Option<(MetaKey, u64)>,
         name: &str,
     ) -> std::path::PathBuf {
-        let mut w = PakWriter::new();
+        let mut w = PakBuilder::new();
         for (path, data, codec) in files {
             w.add_bytes(path, *data, *codec).unwrap();
         }

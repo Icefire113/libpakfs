@@ -1,9 +1,9 @@
 [package]
-name = "libpakfs"
+name = "pakfs"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 thiserror = "2.0.18"
-zstd = "0.13"
+zstd = { version = "0.13", features = ["fat-lto"] }
 lz4 = "1.28.1"

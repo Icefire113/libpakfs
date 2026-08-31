@@ -177,6 +177,9 @@ impl PakBuilder {
 }
 ```
 
+(In the current implementation, `add_file` reads the source fully into
+memory before staging; a streaming variant is planned.)
+
 ### 2.3 Shared types
 
 ```rust

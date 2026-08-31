@@ -1,7 +1,7 @@
-//! Pak file writing: staging entries and writing the on-disk format.
+//! Pak file building: staging entries and writing the on-disk format.
 //!
-//! The low-level writer is [`PakWriter`]; the public build API (`PakBuilder`)
-//! will sit on top of this.
+//! [`PakBuilder`] stages files and pak-level metadata, then `save` consumes
+//! the builder and writes the pak. A saved pak is frozen.
 
 use std::{collections::BTreeMap, io::Read, path::Path};
 
@@ -21,14 +21,14 @@ struct StagedFile {
 ///
 /// A saved pak is frozen: it is never modified after `save`.
 #[derive(Debug, Default)]
-pub struct PakWriter {
+pub struct PakBuilder {
     /// Staged files keyed by path. `BTreeMap` for deterministic, sorted output.
     files: BTreeMap<String, StagedFile>,
     /// Pak-level metadata, keyed by on-disk key id.
     metadata: BTreeMap<u16, u64>,
 }
 
-impl PakWriter {
+impl PakBuilder {
     /// Creates an empty pak writer.
     pub fn new() -> Self {
         Self::default()
@@ -158,7 +158,7 @@ mod tests {
     /// Writes a small pak and verifies the raw bytes match the spec layout.
     #[test]
     fn written_bytes_match_spec() {
-        let mut w = PakWriter::new();
+        let mut w = PakBuilder::new();
         w.add_bytes("b.txt", b"hello", Codec::None).unwrap();
         w.add_bytes("a.txt", b"world", Codec::Lz4(0)).unwrap();
         w.set_metadata(MetaKey::ModifiedAt, 1234);
@@ -220,7 +220,7 @@ mod tests {
 
     #[test]
     fn duplicate_paths_rejected() {
-        let mut w = PakWriter::new();
+        let mut w = PakBuilder::new();
         w.add_bytes("a", b"1", Codec::None).unwrap();
         assert!(matches!(
             w.add_bytes("a", b"2", Codec::None),
@@ -230,7 +230,7 @@ mod tests {
 
     #[test]
     fn empty_paths_rejected() {
-        let mut w = PakWriter::new();
+        let mut w = PakBuilder::new();
         assert!(matches!(
             w.add_bytes("", b"1", Codec::None),
             Err(PakError::Malformed(_))
