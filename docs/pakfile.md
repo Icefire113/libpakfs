@@ -2,7 +2,7 @@
 
 ## File Structure
 
-The structure of a pak file is defined in [`pakfile.rs`](../pakfs/src/pakfile/pakfile.rs). 
+The structure of a pak file is defined in [`pakfile.rs`](../pakfs/src/pakfile/pakfile.rs).
 A hexpat file for [ImHex](https://github.com/WerWolv/ImHex) is also provided at [here](./pakfile.hexpat)
 
 ### Remarks

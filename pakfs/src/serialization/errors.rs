@@ -1,4 +1,4 @@
-use crate::pakfile::pakfile::PAKFILE_VERSION;
+use crate::serialization::pakfile::PAKFILE_VERSION;
 use crate::util;
 
 use std::io;
@@ -21,6 +21,12 @@ pub enum DeSerError {
         pak file version: {actual}, libpakfs version: {PAKFILE_VERSION}"
     )]
     InvalidFileVersion { actual: u32 },
+}
+
+#[derive(Debug, Error)]
+pub enum FileSaveError {
+    #[error("IO Error: {0}")]
+    IoError(#[from] std::io::Error),
 }
 
 #[derive(Debug, Error)]

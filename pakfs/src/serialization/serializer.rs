@@ -1,18 +1,18 @@
 use std::{
-    fs::{File, OpenOptions},
+    fs::OpenOptions,
     io::{BufWriter, Write},
     path::Path,
 };
 
-use crate::{pakfile::pakfile::PakFile, serialization::errors::SerializerError};
+use crate::{serialization::errors::SerializerError, serialization::pakfile::PakFileData};
 
 #[derive(Debug)]
 pub struct PakFileSerializer {
-    pak_file: PakFile,
+    pak_file: PakFileData,
 }
 
 impl PakFileSerializer {
-    pub fn new(pak_file: PakFile) -> Self {
+    pub fn new(pak_file: PakFileData) -> Self {
         PakFileSerializer { pak_file: pak_file }
     }
 }
@@ -29,14 +29,16 @@ impl PakFileSerializer {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(true)
             .open(path)?;
-
         file.lock()?;
-        let mut writer = BufWriter::new(file);
+
+        let mut writer = BufWriter::new(&file);
         writer.write(self.pak_file.header.as_bytes().as_slice())?;
         writer.write(self.pak_file.data.as_slice())?;
 
         writer.flush()?;
+        file.unlock()?;
         Ok(())
     }
 }

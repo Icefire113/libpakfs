@@ -1,8 +1,10 @@
 use std::{fs::File, io::BufReader};
 
 use crate::{
-    pakfile::pakfile::{ManifestEntry, PAKFILE_MAGIC, PAKFILE_VERSION, PakFile, PakFileHeader},
     serialization::errors::DeSerError,
+    serialization::pakfile::{
+        ManifestEntry, PAKFILE_MAGIC, PAKFILE_VERSION, PakFileData, PakFileHeader,
+    },
     util::{read_n_bytes, read_string, read_u32, read_u64},
 };
 
@@ -18,7 +20,7 @@ impl PakFileDeserializer {
 }
 
 impl PakFileDeserializer {
-    pub fn deserialize(&mut self) -> Result<PakFile, DeSerError> {
+    pub fn deserialize(&mut self) -> Result<PakFileData, DeSerError> {
         let mut reader = BufReader::new(&self.pak_file);
         let magic_bytes = read_n_bytes(&mut reader, 4)?;
 
@@ -80,7 +82,7 @@ impl PakFileDeserializer {
 
         println!("\nread header: {:#?}", header);
 
-        let mut pak_file = PakFile::default();
+        let mut pak_file = PakFileData::default();
         pak_file.header = header;
         pak_file.data = read_n_bytes(&mut reader, data_size as usize)?;
 

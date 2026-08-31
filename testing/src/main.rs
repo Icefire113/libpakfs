@@ -1,7 +1,7 @@
 use std::{fs::File, path::Path};
 
 use libpakfs::{
-    pakfile::pakfile::PakFile,
+    serialization::pakfile::PakFileData,
     serialization::{deserializer::PakFileDeserializer, serializer::PakFileSerializer},
 };
 
@@ -15,7 +15,7 @@ fn main() {
         }
     };
 
-    let mut pk_file = PakFile::new();
+    let pk_file = PakFileData::new();
 
     let pk_file_ser = PakFileSerializer::new(pk_file);
 

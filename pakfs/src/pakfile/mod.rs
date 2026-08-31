@@ -1,3 +1,2 @@
-pub mod internal_file;
+mod errors;
 pub mod pakfile;
-pub mod parse;
