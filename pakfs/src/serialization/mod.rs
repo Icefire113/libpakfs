@@ -1,5 +1,4 @@
 pub mod deserializer;
-pub mod serializer;
+pub mod errors;
 pub mod pakfile;
-
-pub(crate) mod errors;
+pub mod serializer;

@@ -1,28 +1,25 @@
-use std::{fs::File, path::Path};
-
 use libpakfs::{
-    serialization::pakfile::PakFileData,
-    serialization::{deserializer::PakFileDeserializer, serializer::PakFileSerializer},
+    PakFile,
+    serialization::{pakfile::Codec, serializer::PakWriter},
 };
 
-fn main() {
-    let mut pk_file_deser = PakFileDeserializer::new(File::open("test.pak").unwrap());
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // build a small pak
+    let mut w = PakWriter::new();
+    w.add_bytes("hello.txt", b"Hello from inside the pak!", Codec::Zstd(3))?;
+    w.add_bytes(
+        "data.bin",
+        (0u8..=255).collect::<Vec<u8>>().as_slice(),
+        Codec::Lz4(0),
+    )?;
+    w.save("test_out.pak")?;
 
-    match pk_file_deser.deserialize() {
-        Ok(_) => (),
-        Err(e) => {
-            panic!("deser error: {}", e);
-        }
-    };
+    // read it back
+    let pak = PakFile::open("test_out.pak")?;
+    println!("entries: {}", pak.len());
+    println!("hello.txt: {}", String::from_utf8(pak.get("hello.txt")?)?);
+    println!("data.bin len: {}", pak.get("data.bin")?.len());
+    println!("exists data.bin: {}", pak.exists("data.bin"));
 
-    let pk_file = PakFileData::new();
-
-    let pk_file_ser = PakFileSerializer::new(pk_file);
-
-    match pk_file_ser.save_to(Path::new("test2.pak")) {
-        Ok(_) => (),
-        Err(e) => {
-            panic!("ser error: {}", e);
-        }
-    };
+    Ok(())
 }

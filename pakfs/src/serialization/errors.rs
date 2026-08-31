@@ -1,42 +1,31 @@
-use crate::serialization::pakfile::PAKFILE_VERSION;
-use crate::util;
-
 use std::io;
+
 use thiserror::Error;
 
-/// This represents an error that occured when deserializing a pak file
+/// Errors produced when building, reading, or writing pak files.
 #[derive(Debug, Error)]
-pub enum DeSerError {
+pub enum PakError {
     #[error("IO Error: {0}")]
-    IoError(#[from] io::Error),
+    Io(#[from] io::Error),
 
-    #[error("Read Error: {0}")]
-    ReadError(#[from] util::errors::UtilReadError),
+    #[error("Path not found in pak file: {0}")]
+    NotFound(String),
 
-    #[error("Invalid file magic!")]
-    InvalidFileMagic,
+    #[error("Buffer too small: needed {needed} bytes, got {got}")]
+    BufferTooSmall { needed: u64, got: usize },
 
-    #[error(
-        "This pak file cannot be read with this version of libpakfs, \
-        pak file version: {actual}, libpakfs version: {PAKFILE_VERSION}"
-    )]
-    InvalidFileVersion { actual: u32 },
-}
+    #[error("Invalid file magic, not a pak file")]
+    BadMagic,
 
-#[derive(Debug, Error)]
-pub enum FileSaveError {
-    #[error("IO Error: {0}")]
-    IoError(#[from] std::io::Error),
-}
+    #[error("Malformed pak file: {0}")]
+    Malformed(&'static str),
 
-#[derive(Debug, Error)]
-pub enum SerializerError {
-    #[error("IO Error: {0}")]
-    IoError(#[from] io::Error),
+    #[error("Unknown compression codec id: {0}")]
+    UnknownCodec(u8),
 
-    #[error("Unable to write to file")]
-    UnwritableError,
+    #[error("Duplicate path: {0}")]
+    DuplicatePath(String),
 
-    #[error("Is not a file")]
-    NotAFileError,
+    #[error("Compression error: {0}")]
+    Compression(String),
 }

@@ -1,150 +1,226 @@
-use std::path::Path;
+//! On-disk format types for pak files.
+//!
+//! See `docs/pakfile.md` for the full format specification.
+//! All integers are little-endian on disk.
 
-use crate::serialization::errors::FileSaveError;
+use std::io::{Read, Write};
 
-/// The magic for a pak file, this is used to validate the header and should be the first 4 bytes of a pak file
-pub const PAKFILE_MAGIC: &[u8; 4] = b"pkfs";
+use crate::serialization::errors::PakError;
 
-/// The current version of the pak file
-pub const PAKFILE_VERSION: u32 = 1;
+/// The magic for a pak file, must be the first 4 bytes of the file.
+pub const PAKFILE_MAGIC: [u8; 4] = *b"pkfs";
 
-#[allow(dead_code)]
-#[derive(Debug)]
-/// This is the format for a pak file header
-pub struct PakFileHeader {
-    /// This should always be "pkfs" (not null-terminated)
+/// Total size of the fixed header in bytes.
+pub const HEADER_SIZE: u64 = 40;
+
+/// Per-entry compression codec, chosen at build time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Codec {
+    /// Stored raw
+    None,
+    /// Zstd frame format; level is a build-time choice and is not stored
+    Zstd(u8),
+    /// LZ4 frame format; level is a build-time choice and is not stored
+    Lz4(u8),
+}
+
+impl Codec {
+    /// The on-disk codec id byte.
+    pub fn id(self) -> u8 {
+        match self {
+            Codec::None => 0,
+            Codec::Zstd(_) => 1,
+            Codec::Lz4(_) => 2,
+        }
+    }
+
+    /// Maps an on-disk codec id to a codec. `None` for unknown ids.
+    pub fn from_id(id: u8) -> Option<Codec> {
+        match id {
+            0 => Some(Codec::None),
+            1 => Some(Codec::Zstd(0)),
+            2 => Some(Codec::Lz4(0)),
+            _ => None,
+        }
+    }
+
+    /// Compresses `data` with this codec. `Codec::None` returns the input as-is.
+    pub(crate) fn compress(self, data: &[u8]) -> Result<Vec<u8>, PakError> {
+        match self {
+            Codec::None => Ok(data.to_vec()),
+            Codec::Zstd(level) => {
+                let mut out = Vec::new();
+                let mut enc = zstd::stream::Encoder::new(&mut out, level as i32)?;
+                enc.write_all(data)?;
+                enc.finish()?;
+                Ok(out)
+            }
+            Codec::Lz4(level) => {
+                let mut out = Vec::new();
+                let mut enc = lz4::EncoderBuilder::new()
+                    .level(level as u32)
+                    .build(&mut out)?;
+                enc.write_all(data)?;
+                let (_w, res) = enc.finish();
+                res?;
+                Ok(out)
+            }
+        }
+    }
+
+    /// Decompresses `data` with this codec. `Codec::None` returns the input as-is.
+    pub(crate) fn decompress(self, data: &[u8], original_size: u64) -> Result<Vec<u8>, PakError> {
+        match self {
+            Codec::None => Ok(data.to_vec()),
+            Codec::Zstd(_) => {
+                let mut out = Vec::with_capacity(original_size as usize);
+                zstd::stream::Decoder::new(data)?.read_to_end(&mut out)?;
+                Ok(out)
+            }
+            Codec::Lz4(_) => {
+                let mut out = Vec::with_capacity(original_size as usize);
+                let mut dec = lz4::Decoder::new(data)?;
+                dec.read_to_end(&mut out)?;
+                Ok(out)
+            }
+        }
+    }
+}
+
+/// Typed pak-level metadata keys. Stored as `u16` ids on disk with `u64` values.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MetaKey {
+    /// Unix timestamp (seconds) of pak creation
+    ModifiedAt,
+    /// Build-tool defined identifier
+    ToolId,
+}
+
+impl MetaKey {
+    /// The on-disk metadata key id.
+    pub fn id(self) -> u16 {
+        match self {
+            MetaKey::ModifiedAt => 0,
+            MetaKey::ToolId => 1,
+        }
+    }
+
+    /// Maps an on-disk metadata key id to a key. `None` for unknown keys
+    /// (readers must ignore unknown keys).
+    pub fn from_id(id: u16) -> Option<MetaKey> {
+        match id {
+            0 => Some(MetaKey::ModifiedAt),
+            1 => Some(MetaKey::ToolId),
+            _ => None,
+        }
+    }
+}
+
+/// The fixed 40-byte header at offset 0 of a pak file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Header {
+    /// Must be `pkfs`
     pub magic: [u8; 4],
-    /// Version of the pak file
-    pub version: u32,
-    /// The ID for the pak file
-    pub id: u64,
-    /// The number of files in the pak file (also the number of manifest entries)
+    /// Number of manifest entries
     pub entry_count: u64,
-    /// List of all files in the pak file
-    manifest: Vec<ManifestEntry>,
+    /// Byte offset from start of file to the data region
+    pub data_offset: u64,
+    /// Byte offset from start of file to the metadata block
+    pub meta_offset: u64,
+    /// Number of pak-level metadata entries
+    pub meta_count: u64,
+    /// Total byte size of the manifest section
+    pub manifest_size: u16,
+    /// Reserved, must be 0
+    pub reserved: u16,
 }
 
-impl Default for PakFileHeader {
-    /// Create a new pak file header, with all empty (0d out) data
-    fn default() -> Self {
-        PakFileHeader {
-            magic: [0u8; 4],
-            version: 0,
-            id: 0,
-            entry_count: 0,
-            manifest: vec![],
+impl Header {
+    /// Serializes the header to its on-disk representation.
+    pub fn to_bytes(&self) -> [u8; HEADER_SIZE as usize] {
+        let mut out = [0u8; HEADER_SIZE as usize];
+        out[0..4].copy_from_slice(&self.magic);
+        out[4..12].copy_from_slice(&self.entry_count.to_le_bytes());
+        out[12..20].copy_from_slice(&self.data_offset.to_le_bytes());
+        out[20..28].copy_from_slice(&self.meta_offset.to_le_bytes());
+        out[28..36].copy_from_slice(&self.meta_count.to_le_bytes());
+        out[36..38].copy_from_slice(&self.manifest_size.to_le_bytes());
+        out[38..40].copy_from_slice(&self.reserved.to_le_bytes());
+        out
+    }
+
+    /// Parses a header from exactly `HEADER_SIZE` bytes.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Header, PakError> {
+        if bytes.len() != HEADER_SIZE as usize {
+            return Err(PakError::Malformed("header must be 40 bytes"));
         }
-    }
-}
-
-impl PakFileHeader {
-    /// Creates a new pak file header with expected file magic, current libpakfs
-    /// version and a random ID
-    pub fn new() -> Self {
-        PakFileHeader {
-            magic: *PAKFILE_MAGIC,
-            version: PAKFILE_VERSION,
-            id: rand::random(),
-            entry_count: 0,
-            manifest: vec![],
+        let mut magic = [0u8; 4];
+        magic.copy_from_slice(&bytes[0..4]);
+        if magic != PAKFILE_MAGIC {
+            return Err(PakError::BadMagic);
         }
-    }
-
-    /// Creates and returns a vector of bytes representing the header
-    pub fn as_bytes(&self) -> Vec<u8> {
-        let mut v: Vec<u8> = Vec::new();
-        v.extend_from_slice(&self.magic);
-        v.extend_from_slice(&self.version.to_le_bytes());
-        v.extend_from_slice(&self.id.to_le_bytes());
-        v.extend_from_slice(&self.entry_count.to_le_bytes());
-
-        // deep copy the manifest
-        self.manifest.iter().enumerate().for_each(|(_, item)| {
-            v.extend_from_slice(&item.file_offset.to_le_bytes());
-            v.extend_from_slice(&item.file_size.to_le_bytes());
-            v.extend_from_slice(&item.file_path.as_bytes());
-            // stupid c-string null terminator
-            v.extend_from_slice(&[0u8]);
-        });
-
-        v
-    }
-
-    pub fn manifest_mut(&mut self) -> &mut Vec<ManifestEntry> {
-        &mut self.manifest
-    }
-
-    pub fn manifest(&self) -> &Vec<ManifestEntry> {
-        &self.manifest
+        Ok(Header {
+            magic,
+            entry_count: u64::from_le_bytes(bytes[4..12].try_into().unwrap()),
+            data_offset: u64::from_le_bytes(bytes[12..20].try_into().unwrap()),
+            meta_offset: u64::from_le_bytes(bytes[20..28].try_into().unwrap()),
+            meta_count: u64::from_le_bytes(bytes[28..36].try_into().unwrap()),
+            manifest_size: u16::from_le_bytes(bytes[36..38].try_into().unwrap()),
+            reserved: u16::from_le_bytes(bytes[38..40].try_into().unwrap()),
+        })
     }
 }
 
-/// This represents the format for a manifest entry
-#[allow(dead_code)]
-#[derive(Debug)]
+/// One manifest entry describing a file stored in the data region.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ManifestEntry {
-    /// The offset of the file stored in the pak file indexed from the start of the data portion
-    file_offset: u64,
-    /// The size of the file in bytes
-    file_size: u64,
-    /// The path to the file localized to the pak file
-    file_path: String,
+    /// Byte offset of the file's data relative to `data_offset`
+    pub offset: u64,
+    /// Size of the stored (possibly compressed) blob in bytes
+    pub compressed_size: u64,
+    /// Size of the file after decompression
+    pub original_size: u64,
+    /// Compression codec id
+    pub codec: u8,
+    /// UTF-8 path, no trailing null
+    pub path: String,
 }
 
 impl ManifestEntry {
-    /// Creates a new manifest entry with the given file path, offset and size
-    pub fn new(file_path: String, file_offset: u64, file_size: u64) -> Self {
-        ManifestEntry {
-            file_path,
-            file_offset,
-            file_size,
-        }
+    /// Serializes this entry to its on-disk representation.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut out = Vec::with_capacity(25 + self.path.len());
+        out.extend_from_slice(&self.offset.to_le_bytes());
+        out.extend_from_slice(&self.compressed_size.to_le_bytes());
+        out.extend_from_slice(&self.original_size.to_le_bytes());
+        out.push(self.codec);
+        // path length is u16; a path longer than u16::MAX is rejected at build time
+        out.extend_from_slice(&(self.path.len() as u16).to_le_bytes());
+        out.extend_from_slice(self.path.as_bytes());
+        out
     }
 
-    pub fn file_path(&self) -> &str {
-        &self.file_path
-    }
-
-    pub fn file_size(&self) -> u64 {
-        self.file_size
-    }
-
-    pub fn file_offset(&self) -> u64 {
-        self.file_offset
+    /// The on-disk size of this entry in bytes.
+    pub fn disk_size(&self) -> u64 {
+        27 + self.path.len() as u64
     }
 }
 
-/// Struct representing a pak file as it would appear saved on disk
-#[allow(dead_code)]
-#[derive(Debug)]
-pub struct PakFileData {
-    pub header: PakFileHeader,
-    pub data: Vec<u8>,
+/// One pak-level metadata key/value pair.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MetaEntry {
+    /// Metadata key id
+    pub key: u16,
+    /// Value; meaning depends on the key
+    pub value: u64,
 }
 
-impl Default for PakFileData {
-    /// Creates a new pak file with 0d out header and an empty data portion.
-    fn default() -> Self {
-        PakFileData {
-            header: PakFileHeader::default(),
-            data: vec![],
-        }
-    }
-}
-
-impl PakFileData {
-    /// Creates a new pak file, with a correctly formatted header and an empty data portion
-    pub fn new() -> Self {
-        PakFileData {
-            header: PakFileHeader::new(),
-            data: vec![],
-        }
-    }
-
-    /// Adds a file to the pak file, note that this will read the entire file into memory
-    /// a variant of this function that does not read the entire file into memory is
-    /// planned for the future
-    pub fn add_file(&mut self, file_path: &Path) -> Result<(), FileSaveError> {
-        Ok(())
+impl MetaEntry {
+    /// Serializes this entry to its on-disk representation.
+    pub fn to_bytes(&self) -> [u8; 10] {
+        let mut out = [0u8; 10];
+        out[0..2].copy_from_slice(&self.key.to_le_bytes());
+        out[2..10].copy_from_slice(&self.value.to_le_bytes());
+        out
     }
 }
