@@ -1,14 +1,12 @@
 //! Pak file building: staging entries and writing the on-disk format.
 //!
-//! [`PakBuilder`] stages files and pak-level metadata, then `save` consumes
-//! the builder and writes the pak. A saved pak is frozen.
+//! [`PakBuilder`] stages files, then `save` consumes the builder and writes
+//! the pak. A saved pak is frozen.
 
 use std::{collections::BTreeMap, io::Read, path::Path};
 
 use crate::serialization::errors::PakError;
-use crate::serialization::pakfile::{
-    Codec, HEADER_SIZE, Header, ManifestEntry, MetaEntry, MetaKey,
-};
+use crate::serialization::pakfile::{Codec, HEADER_SIZE, Header, ManifestEntry};
 
 /// A staged file: its contents (already read) and per-entry codec.
 #[derive(Debug)]
@@ -17,15 +15,13 @@ struct StagedFile {
     codec: Codec,
 }
 
-/// Stages files and pak-level metadata, then writes a complete pak file.
+/// Stages files, then writes a complete pak file.
 ///
 /// A saved pak is frozen: it is never modified after `save`.
 #[derive(Debug, Default)]
 pub struct PakBuilder {
     /// Staged files keyed by path. `BTreeMap` for deterministic, sorted output.
     files: BTreeMap<String, StagedFile>,
-    /// Pak-level metadata, keyed by on-disk key id.
-    metadata: BTreeMap<u16, u64>,
 }
 
 impl PakBuilder {
@@ -79,12 +75,6 @@ impl PakBuilder {
         Ok(self)
     }
 
-    /// Sets pak-level metadata. Later sets of the same key overwrite.
-    pub fn set_metadata(&mut self, key: MetaKey, value: u64) -> &mut Self {
-        self.metadata.insert(key.id(), value);
-        self
-    }
-
     /// Consumes the writer and produces the complete on-disk pak file as bytes.
     ///
     /// The output is deterministic: the manifest is sorted by path (guaranteed
@@ -115,28 +105,18 @@ impl PakBuilder {
             .try_into()
             .map_err(|_| PakError::Malformed("manifest larger than u16::MAX bytes"))?;
 
-        let meta: Vec<u8> = self
-            .metadata
-            .iter()
-            .flat_map(|(&key, &value)| MetaEntry { key, value }.to_bytes())
-            .collect();
-
-        // Layout: header | manifest | metadata | data
+        // Layout: header | manifest | data
         let header = Header {
             magic: crate::serialization::pakfile::PAKFILE_MAGIC,
             entry_count: entries.len() as u64,
-            data_offset: HEADER_SIZE + manifest.len() as u64 + meta.len() as u64,
-            meta_offset: HEADER_SIZE + manifest.len() as u64,
-            meta_count: self.metadata.len() as u64,
+            data_offset: HEADER_SIZE + manifest.len() as u64,
             manifest_size,
             reserved: 0,
         };
 
-        let mut out =
-            Vec::with_capacity(HEADER_SIZE as usize + manifest.len() + meta.len() + data.len());
+        let mut out = Vec::with_capacity(HEADER_SIZE as usize + manifest.len() + data.len());
         out.extend_from_slice(&header.to_bytes());
         out.extend_from_slice(&manifest);
-        out.extend_from_slice(&meta);
         out.extend_from_slice(&data);
         Ok(out)
     }
@@ -161,21 +141,18 @@ mod tests {
         let mut w = PakBuilder::new();
         w.add_bytes("b.txt", b"hello", Codec::None).unwrap();
         w.add_bytes("a.txt", b"world", Codec::Lz4(0)).unwrap();
-        w.set_metadata(MetaKey::ModifiedAt, 1234);
         let bytes = w.into_bytes().unwrap();
 
         // header
         let header = Header::from_bytes(&bytes[0..HEADER_SIZE as usize]).unwrap();
         assert_eq!(header.magic, PAKFILE_MAGIC);
         assert_eq!(header.entry_count, 2);
-        assert_eq!(header.meta_count, 1);
         // 2 entries: 27 fixed bytes + 5 byte path each
         assert_eq!(header.manifest_size, 64);
-        assert_eq!(header.meta_offset, HEADER_SIZE + 64);
-        assert_eq!(header.data_offset, header.meta_offset + 10);
+        assert_eq!(header.data_offset, HEADER_SIZE + 64);
 
         // manifest, sorted by path: a.txt then b.txt
-        let manifest = &bytes[HEADER_SIZE as usize..header.meta_offset as usize];
+        let manifest = &bytes[HEADER_SIZE as usize..header.data_offset as usize];
         let second_start = 32;
         let first = ManifestEntry {
             offset: 0,
@@ -194,17 +171,6 @@ mod tests {
             path: "b.txt".into(),
         };
         assert_eq!(&manifest[second_start..], &second.to_bytes()[..]);
-
-        // metadata: key 0 (ModifiedAt), value 1234
-        let meta = &bytes[header.meta_offset as usize..header.data_offset as usize];
-        assert_eq!(
-            meta,
-            &MetaEntry {
-                key: 0,
-                value: 1234
-            }
-            .to_bytes()
-        );
 
         // data region: lz4("world") followed by "hello"
         let data = &bytes[header.data_offset as usize..];

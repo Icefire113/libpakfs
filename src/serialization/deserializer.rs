@@ -8,10 +8,9 @@ use std::os::unix::fs::FileExt;
 use std::os::windows::fs::FileExt;
 
 use crate::serialization::errors::PakError;
-use crate::serialization::pakfile::{HEADER_SIZE, Header, ManifestEntry, MetaEntry};
+use crate::serialization::pakfile::{HEADER_SIZE, Header, ManifestEntry};
 
-/// Parses header + manifest + metadata from a stream, without reading the
-/// data region.
+/// Parses header + manifest from a stream, without reading the data region.
 ///
 /// Returns everything needed to locate file blobs by positioned reads.
 pub fn read_structure(mut reader: impl Read) -> Result<PakStructure, PakError> {
@@ -20,46 +19,23 @@ pub fn read_structure(mut reader: impl Read) -> Result<PakStructure, PakError> {
     let header = Header::from_bytes(&header_buf)?;
 
     // sanity-check the layout before allocating anything
-    if header.data_offset < header.meta_offset {
-        return Err(PakError::Malformed("data_offset precedes meta_offset"));
-    }
-
     let manifest_size = header.manifest_size as u64;
-    if header.meta_offset < HEADER_SIZE + manifest_size {
-        return Err(PakError::Malformed("manifest overruns meta_offset"));
+    if header.data_offset < HEADER_SIZE + manifest_size {
+        return Err(PakError::Malformed("manifest overruns data_offset"));
     }
 
     let mut manifest_buf = vec![0u8; manifest_size as usize];
     reader.read_exact(&mut manifest_buf)?;
     let manifest = parse_manifest(&manifest_buf, header.entry_count)?;
 
-    let meta_size = header
-        .data_offset
-        .checked_sub(header.meta_offset)
-        .ok_or(PakError::Malformed("data_offset precedes meta_offset"))?;
-    if meta_size != header.meta_count * 10 {
-        return Err(PakError::Malformed("metadata block size mismatch"));
-    }
-
-    let mut meta_buf = vec![0u8; meta_size as usize];
-    reader.read_exact(&mut meta_buf)?;
-    let metadata = parse_metadata(&meta_buf, header.meta_count)?;
-
-    Ok(PakStructure {
-        header,
-        manifest,
-        metadata,
-    })
+    Ok(PakStructure { header, manifest })
 }
 
-/// The parsed header, manifest, and metadata of a pak file — everything
-/// except the data region.
+/// The parsed header and manifest of a pak file, everything except the data region.
 #[derive(Debug)]
 pub struct PakStructure {
     pub header: Header,
     pub manifest: Vec<ManifestEntry>,
-    /// Raw pak-level metadata pairs as stored (unknown keys included).
-    pub metadata: Vec<MetaEntry>,
 }
 
 impl PakStructure {
@@ -156,32 +132,11 @@ fn parse_manifest(bytes: &[u8], entry_count: u64) -> Result<Vec<ManifestEntry>, 
     Ok(entries)
 }
 
-/// Parses `meta_count` metadata pairs from the metadata bytes.
-fn parse_metadata(bytes: &[u8], meta_count: u64) -> Result<Vec<MetaEntry>, PakError> {
-    if bytes.len() != meta_count as usize * 10 {
-        return Err(PakError::Malformed("metadata block size mismatch"));
-    }
-
-    let mut entries = Vec::with_capacity(meta_count as usize);
-    for chunk in bytes.as_chunks::<10>().0 {
-        let mut key_bytes = [0u8; 2];
-        key_bytes.copy_from_slice(&chunk[0..2]);
-        let key = u16::from_le_bytes(key_bytes);
-
-        let mut value_bytes = [0u8; 8];
-        value_bytes.copy_from_slice(&chunk[2..10]);
-        let value = u64::from_le_bytes(value_bytes);
-
-        entries.push(MetaEntry { key, value });
-    }
-    Ok(entries)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::serialization::pakfile::{Codec, MetaKey};
     use crate::serialization::builder::PakBuilder;
+    use crate::serialization::pakfile::Codec;
     use std::io::Write;
 
     /// Writes a small pak to a temp file and returns (path, bytes).
@@ -189,7 +144,6 @@ mod tests {
         let mut w = PakBuilder::new();
         w.add_bytes("b.txt", b"hello", Codec::None).unwrap();
         w.add_bytes("a.txt", b"world", Codec::Lz4(0)).unwrap();
-        w.set_metadata(MetaKey::ModifiedAt, 1234);
         let bytes = w.into_bytes().unwrap();
 
         let dir = std::env::temp_dir().join("libpakfs_tests");
@@ -212,7 +166,6 @@ mod tests {
         assert_eq!(s.header.entry_count, 2);
         assert_eq!(s.manifest[0].path, "a.txt");
         assert_eq!(s.manifest[1].path, "b.txt");
-        assert_eq!(s.metadata[0].value, 1234);
 
         // positioned blob reads
         let a = s.read_blob(&file, &s.manifest[0]).unwrap();
@@ -267,7 +220,7 @@ mod tests {
         w.add_bytes("some/path.bin", &[0u8; 32], Codec::None)
             .unwrap();
         bytes.extend_from_slice(&w.into_bytes().unwrap());
-        bytes.truncate(45);
+        bytes.truncate(33);
         assert!(matches!(
             read_structure(&bytes[..]),
             Err(PakError::Malformed(_) | PakError::Io(_))

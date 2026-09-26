@@ -2,11 +2,7 @@
 
 use std::{collections::HashMap, fs::File, path::Path};
 
-use crate::serialization::{
-    deserializer::read_structure,
-    errors::PakError,
-    pakfile::{Codec, MetaEntry, MetaKey},
-};
+use crate::serialization::{deserializer::read_structure, errors::PakError, pakfile::Codec};
 
 /// An entry in the pak's cached manifest: the index into the parsed
 /// manifest plus the decoded codec for that entry.
@@ -20,7 +16,7 @@ struct Entry {
 ///
 /// Opened paks are frozen; there are no mutable operations.
 ///
-/// Only the header, manifest, and metadata are held in memory; file contents
+/// Only the header and manifest are held in memory; file contents
 /// are read from disk on demand using positioned reads, which do not disturb
 /// any shared cursor and are safe to issue concurrently from multiple threads.
 #[derive(Debug)]
@@ -32,7 +28,7 @@ pub struct PakFile {
 }
 
 impl PakFile {
-    /// Opens a pak file, parsing the header, manifest, and metadata, and
+    /// Opens a pak file, parsing the header and manifest, and
     /// caching the path -> entry table in memory. The data region is left on
     /// disk and read on demand.
     pub fn open(path: impl AsRef<Path>) -> Result<PakFile, PakError> {
@@ -113,15 +109,6 @@ impl PakFile {
         Ok(self.structure.manifest[entry.manifest_index].original_size)
     }
 
-    /// Pak-level metadata; unknown keys are filtered out.
-    pub fn metadata(&self) -> Vec<(MetaKey, u64)> {
-        self.structure
-            .metadata
-            .iter()
-            .filter_map(|MetaEntry { key, value }| MetaKey::from_id(*key).map(|k| (k, *value)))
-            .collect()
-    }
-
     /// All paths in the pak, sorted.
     pub fn paths(&self) -> impl Iterator<Item = &str> {
         self.structure.manifest.iter().map(|m| m.path.as_str())
@@ -131,21 +118,14 @@ impl PakFile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::serialization::pakfile::Codec;
     use crate::serialization::builder::PakBuilder;
+    use crate::serialization::pakfile::Codec;
 
     /// Writes a small pak to a unique temp file.
-    fn write_test_pak(
-        files: &[(&str, &[u8], Codec)],
-        meta: Option<(MetaKey, u64)>,
-        name: &str,
-    ) -> std::path::PathBuf {
+    fn write_test_pak(files: &[(&str, &[u8], Codec)], name: &str) -> std::path::PathBuf {
         let mut w = PakBuilder::new();
         for (path, data, codec) in files {
             w.add_bytes(path, *data, *codec).unwrap();
-        }
-        if let Some((k, v)) = meta {
-            w.set_metadata(k, v);
         }
         let bytes = w.into_bytes().unwrap();
 
@@ -166,7 +146,6 @@ mod tests {
                 ("b.txt", b"hello" as &[u8], Codec::None),
                 ("a.txt", b"world" as &[u8], Codec::Lz4(0)),
             ],
-            Some((MetaKey::ModifiedAt, 1234)),
             "get",
         ))
         .unwrap()
@@ -234,23 +213,5 @@ mod tests {
         for h in handles {
             h.join().unwrap();
         }
-    }
-
-    #[test]
-    fn metadata_filters_unknown_keys() {
-        let path = write_test_pak(
-            &[("x", b"y" as &[u8], Codec::None)],
-            Some((MetaKey::ToolId, 7)),
-            "meta",
-        );
-        let mut bytes = std::fs::read(&path).unwrap();
-        // corrupt the metadata key to an unknown id: metadata starts at
-        // meta_offset = HEADER_SIZE + manifest_size; manifest is 27 + 1 = 28
-        let meta_offset = 40 + 28;
-        bytes[meta_offset] = 200;
-        std::fs::write(&path, &bytes).unwrap();
-
-        let pak = PakFile::open(&path).unwrap();
-        assert_eq!(pak.metadata(), vec![]);
     }
 }

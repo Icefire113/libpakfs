@@ -18,30 +18,19 @@ struct ManifestEntry {
     char path[path_len];
 };
 
-struct MetaEntry {
-    u16 key;
-    u64 value;
-};
-
 struct Header {
     char magic[4];          // "pkfs"
     u64 entry_count;
     u64 data_offset;        // from start of file
-    u64 meta_offset;        // from start of file
-    u64 meta_count;
     u16 manifest_size;      // byte size of manifest section
     u16 reserved;           // must be 0
 };
 
 Header header @ 0x00;
 
-ManifestEntry manifest[header.entry_count] @ 0x28;
-
-MetaEntry metadata[header.meta_count] @ header.meta_offset;
+ManifestEntry manifest[header.entry_count] @ 0x18;
 
 // individual file blobs, positioned relative to data_offset
 fn blob(ManifestEntry e) {
     u8 data[e.compressed_size] @ header.data_offset + e.offset;
 };
-
-u8 data_region[header.manifest_size * 0] @ header.data_offset; // data region begins here

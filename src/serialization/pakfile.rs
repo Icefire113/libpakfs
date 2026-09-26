@@ -11,7 +11,7 @@ use crate::serialization::errors::PakError;
 pub const PAKFILE_MAGIC: [u8; 4] = *b"pkfs";
 
 /// Total size of the fixed header in bytes.
-pub const HEADER_SIZE: u64 = 40;
+pub const HEADER_SIZE: u64 = 24;
 
 /// Per-entry compression codec, chosen at build time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -87,36 +87,7 @@ impl Codec {
     }
 }
 
-/// Typed pak-level metadata keys. Stored as `u16` ids on disk with `u64` values.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MetaKey {
-    /// Unix timestamp (seconds) of pak creation
-    ModifiedAt,
-    /// Build-tool defined identifier
-    ToolId,
-}
-
-impl MetaKey {
-    /// The on-disk metadata key id.
-    pub fn id(self) -> u16 {
-        match self {
-            MetaKey::ModifiedAt => 0,
-            MetaKey::ToolId => 1,
-        }
-    }
-
-    /// Maps an on-disk metadata key id to a key. `None` for unknown keys
-    /// (readers must ignore unknown keys).
-    pub fn from_id(id: u16) -> Option<MetaKey> {
-        match id {
-            0 => Some(MetaKey::ModifiedAt),
-            1 => Some(MetaKey::ToolId),
-            _ => None,
-        }
-    }
-}
-
-/// The fixed 40-byte header at offset 0 of a pak file.
+/// The fixed 24-byte header at offset 0 of a pak file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Header {
     /// Must be `pkfs`
@@ -125,10 +96,6 @@ pub struct Header {
     pub entry_count: u64,
     /// Byte offset from start of file to the data region
     pub data_offset: u64,
-    /// Byte offset from start of file to the metadata block
-    pub meta_offset: u64,
-    /// Number of pak-level metadata entries
-    pub meta_count: u64,
     /// Total byte size of the manifest section
     pub manifest_size: u16,
     /// Reserved, must be 0
@@ -142,17 +109,15 @@ impl Header {
         out[0..4].copy_from_slice(&self.magic);
         out[4..12].copy_from_slice(&self.entry_count.to_le_bytes());
         out[12..20].copy_from_slice(&self.data_offset.to_le_bytes());
-        out[20..28].copy_from_slice(&self.meta_offset.to_le_bytes());
-        out[28..36].copy_from_slice(&self.meta_count.to_le_bytes());
-        out[36..38].copy_from_slice(&self.manifest_size.to_le_bytes());
-        out[38..40].copy_from_slice(&self.reserved.to_le_bytes());
+        out[20..22].copy_from_slice(&self.manifest_size.to_le_bytes());
+        out[22..24].copy_from_slice(&self.reserved.to_le_bytes());
         out
     }
 
     /// Parses a header from exactly `HEADER_SIZE` bytes.
     pub fn from_bytes(bytes: &[u8]) -> Result<Header, PakError> {
         if bytes.len() != HEADER_SIZE as usize {
-            return Err(PakError::Malformed("header must be 40 bytes"));
+            return Err(PakError::Malformed("header must be 24 bytes"));
         }
         let mut magic = [0u8; 4];
         magic.copy_from_slice(&bytes[0..4]);
@@ -163,10 +128,8 @@ impl Header {
             magic,
             entry_count: u64::from_le_bytes(bytes[4..12].try_into().unwrap()),
             data_offset: u64::from_le_bytes(bytes[12..20].try_into().unwrap()),
-            meta_offset: u64::from_le_bytes(bytes[20..28].try_into().unwrap()),
-            meta_count: u64::from_le_bytes(bytes[28..36].try_into().unwrap()),
-            manifest_size: u16::from_le_bytes(bytes[36..38].try_into().unwrap()),
-            reserved: u16::from_le_bytes(bytes[38..40].try_into().unwrap()),
+            manifest_size: u16::from_le_bytes(bytes[20..22].try_into().unwrap()),
+            reserved: u16::from_le_bytes(bytes[22..24].try_into().unwrap()),
         })
     }
 }
@@ -203,24 +166,5 @@ impl ManifestEntry {
     /// The on-disk size of this entry in bytes.
     pub fn disk_size(&self) -> u64 {
         27 + self.path.len() as u64
-    }
-}
-
-/// One pak-level metadata key/value pair.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct MetaEntry {
-    /// Metadata key id
-    pub key: u16,
-    /// Value; meaning depends on the key
-    pub value: u64,
-}
-
-impl MetaEntry {
-    /// Serializes this entry to its on-disk representation.
-    pub fn to_bytes(&self) -> [u8; 10] {
-        let mut out = [0u8; 10];
-        out[0..2].copy_from_slice(&self.key.to_le_bytes());
-        out[2..10].copy_from_slice(&self.value.to_le_bytes());
-        out
     }
 }

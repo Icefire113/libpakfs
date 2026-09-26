@@ -17,7 +17,6 @@ with `PakFile`. Modifying contents means building a new pak.
 - **Per-file compression**: choose a codec per entry at build time:
   raw, zstd, or LZ4 (with build-time compression levels). Decompression is
   transparent to readers.
-- **Pak-level metadata**: typed key/value pairs (e.g. `ModifiedAt`, `ToolId`).
 - **Deterministic output**: the manifest is sorted by path, so builds are
   reproducible and diff-friendly in version control.
 
@@ -27,14 +26,13 @@ with `PakFile`. Modifying contents means building a new pak.
 use libpakfs::{
     PakFile,
     serialization::builder::PakBuilder,
-    serialization::pakfile::{Codec, MetaKey},
+    serialization::pakfile::Codec,
 };
 
 // Build a pak (build-time step)
 let mut b = PakBuilder::new();
 b.add_bytes("hello.txt", b"Hello, world!", Codec::Zstd(3))?;
 b.add_file("data.bin", File::open("data.bin")?, Codec::Lz4(0))?;
-b.set_metadata(MetaKey::ModifiedAt, 1_790_000_000);
 b.save("assets.pak")?;
 
 // Read it back (runtime step)
@@ -50,7 +48,7 @@ The on-disk format is specified in [`docs/pakfile.md`](docs/pakfile.md), with
 an [ImHex pattern](docs/pakfile.hexpat) for inspecting pak files:
 
 ```
-header (40 bytes) | manifest (sorted by path) | metadata | data region
+header (24 bytes) | manifest (sorted by path) | data region
 ```
 
 All integers are little-endian, all strings UTF-8.
